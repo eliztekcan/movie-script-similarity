@@ -174,6 +174,11 @@ void calcTFIDF() {
 						noAllTokens[fileId]++;
 						// Update max frequency
 						maxFreq = max( maxFreq , ++cntToken[fileId][tokenId] );
+						// Replace -1 w/ final maxFreq value, then see which word occurs most & file name
+						if( cntToken[fileId][tokenId] == -1 ) {
+							cout << "Fav word: " << word;
+							printf( " / %s\n" , inputFileNames[fileId] );
+						}
 						// If it's appearance of the word in the doc
 						// Then increase appearance of that token's id in different docs by 1
 						// Also increase number of different tokens in that doc
@@ -188,7 +193,7 @@ void calcTFIDF() {
 	// Display all words in the list
 	printf( "# All words : %d\n" , m );
 	for( int i = 0 ; i < n ; i++ )
-		cout << inputFileNames[i] << " : " << noAllTokens[i] << endl;
+		cout << inputFileNames[i] << " : " << noAllTokens[i] << " " << noDiffTokens[i] << endl;
 	// Calculate idf of the words in the list
 	for( int i = 0 ; i < m ; i++ )
 		idf[i] = log10( (double) n / docFreq[i] );
@@ -199,7 +204,7 @@ void calcTFIDF() {
 			tfidf[i][j] = tf[i][j] * idf[j];
 		}
 	pearsonSimMultiplier = 10.0 / maxFreq;
-	printf( "MaxFreq: %lf / PearsonMult: %lf\n" , maxFreq , pearsonSimMultiplier );
+	printf( "MaxFreq: %d / PearsonMult: %lf\n" , maxFreq , pearsonSimMultiplier );
 }
 
 // O(logN) implementation of x^y
@@ -260,6 +265,8 @@ double calcDistCos( int docX , int docY ) {
 	lenY = sqrt( lenY );
 	// Calculate numerator / denominator
 	double cosVal = multSum / ( lenX * lenY );
+	cosVal = min( cosVal , +1.0 );
+	cosVal = max( cosVal , -1.0 );
 	// Get cosine distance in radian
 	double tetaVal = acos( cosVal );
 	// Get cosine distance in degree
@@ -284,7 +291,7 @@ void calcAllDistances() {
 	// Display different kinds of distances
 	for( int i = 0 ; i < n ; i++ )
 		for( int j = i ; j < n ; j++ )
-			cout << i << " , " << j << " : " << "Cos = " << distCos[i][j] << " / " << "L2 = " << distL[i][j] << " / " << "PearsonSim = " << pearsonSim[i][j] << endl;
+			printf( "%d , %d : Cos = %lf / L2 = %lf / PearsonSim = %lf\n" , i , j , distCos[i][j] , distL[i][j] , pearsonSim[i][j] );
 }
 
 // A short test function code that can be run to check if the algo works correctly
@@ -292,7 +299,8 @@ void test() {
 	n = 3;
 	m = 3;
 	for( int i = 0 ; i < 3 ; i++ )
-		tfidf[i][i] = 1;
+		cntToken[i][i] = tfidf[i][i] = 1 , cntToken[i][(i+1)%3] = tfidf[i][(i+1)%3] = 2 , avgFreq[i] = 1.5;
+	pearsonSimMultiplier = 5;
 	calcAllDistances();
 	while(true);
 }
