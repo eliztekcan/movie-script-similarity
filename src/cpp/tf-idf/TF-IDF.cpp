@@ -16,6 +16,8 @@ const int MAX_NO_TOKEN = 100000;
 const int MAX_FILE_NAME_SIZE = 100;
 
 int n,m;
+int maxFreq; // max of cntToken(doc,token)
+double pearsonSimMultiplier; // 10 / maxFreq
 
 double idf[MAX_NO_TOKEN];
 double tf[MAX_NO_DOC][MAX_NO_TOKEN];
@@ -23,11 +25,15 @@ double tfidf[MAX_NO_DOC][MAX_NO_TOKEN];
 
 double distL[MAX_NO_DOC][MAX_NO_DOC];
 double distCos[MAX_NO_DOC][MAX_NO_DOC];
+double pearsonSim[MAX_NO_DOC][MAX_NO_DOC];
 
 int docFreq[MAX_NO_TOKEN]; // number of docs that has a specific token at least once
 int noAllTokens[MAX_NO_DOC]; // number of all tokens in a specific doc
+int noDiffTokens[MAX_NO_DOC]; // mumber of different tokens in a specific doc
 int charConvertedValue[MAX_CHAR]; // uppercase -> lowercase etc.
 int cntToken[MAX_NO_DOC][MAX_NO_TOKEN]; // # of appearance of a token in a doc
+
+double avgFreq[MAX_NO_DOC]; // avg of cntToken(doc,token) for each doc
 
 char inputFileNames[MAX_NO_DOC][MAX_FILE_NAME_SIZE];
 
@@ -166,14 +172,18 @@ void calcTFIDF() {
 						// Increase # of tokens (words including the same ones) by 1
 						// It's needed to calculate tf in later steps
 						noAllTokens[fileId]++;
+						// Update max frequency
+						maxFreq = max( maxFreq , ++cntToken[fileId][tokenId] );
 						// If it's appearance of the word in the doc
 						// Then increase appearance of that token's id in different docs by 1
-						if( ++cntToken[fileId][tokenId] == 1 )
-							docFreq[tokenId]++;
+						// Also increase number of different tokens in that doc
+						if( cntToken[fileId][tokenId] == 1 )
+							docFreq[tokenId]++ , noDiffTokens[fileId]++;
 					}
 				}
 			}
 		}
+		avgFreq[fileId] = (double) noAllTokens[fileId] / noDiffTokens[fileId];
 	}
 	// Display all words in the list
 	printf( "# All words : %d\n" , m );
@@ -188,6 +198,8 @@ void calcTFIDF() {
 			tf[i][j] = (double) cntToken[i][j] / noAllTokens[i];
 			tfidf[i][j] = tf[i][j] * idf[j];
 		}
+	pearsonSimMultiplier = 10.0 / maxFreq;
+	printf( "MaxFreq: %lf / PearsonMult: %lf\n" , maxFreq , pearsonSimMultiplier );
 }
 
 // O(logN) implementation of x^y
@@ -199,6 +211,23 @@ double calcPower( double value , int pwr ) {
 	if( pwr % 2 )
 		res *= value;
 	return res;
+}
+
+// Calculate Pearson Similarity
+double calcPearsonSim( int docX , int docY ) {
+	double numerator = 0 , sumSquareX = 0 , sumSquareY = 0;
+	double rxAverage = avgFreq[docX] * pearsonSimMultiplier;
+	double ryAverage = avgFreq[docY] * pearsonSimMultiplier;
+	for( int i = 0 ; i < m ; i++ )
+		if( cntToken[docX][i] > 0 && cntToken[docY][i] > 0 ) {
+			double rx = cntToken[docX][i] * pearsonSimMultiplier;
+			double ry = cntToken[docY][i] * pearsonSimMultiplier;
+			numerator += (rx - rxAverage) * (ry - ryAverage);
+			sumSquareX += (rx - rxAverage) * (rx - rxAverage);
+			sumSquareY += (ry - ryAverage) * (ry - ryAverage);
+		}
+	double denominator = sqrt( sumSquareX ) * sqrt( sumSquareY );
+	return numerator / denominator;
 }
 
 // Calculate L2 distance
@@ -240,18 +269,22 @@ double calcDistCos( int docX , int docY ) {
 
 // Display different kinds of distances
 void calcAllDistances() {
+	// Calculate Pearson Similarity
+	for( int i = 0 ; i < n ; i++ )
+		for( int j = i ; j < n ; j++ )
+			pearsonSim[i][j] = pearsonSim[j][i] = calcPearsonSim( i , j );
 	// Calculate L2 distances
 	for( int i = 0 ; i < n ; i++ )
-		for( int j = i + 1 ; j < n ; j++ )
+		for( int j = i ; j < n ; j++ )
 			distL[i][j] = distL[j][i] = calcDistLX( i , j , 2 );
 	// Calculate Cos distances
 	for( int i = 0 ; i < n ; i++ )
-		for( int j = i + 1 ; j < n ; j++ )
+		for( int j = i ; j < n ; j++ )
 			distCos[i][j] = distCos[j][i] = calcDistCos( i , j );
 	// Display different kinds of distances
 	for( int i = 0 ; i < n ; i++ )
 		for( int j = i ; j < n ; j++ )
-			cout << i << " , " << j << " : " << "Cos = " << distCos[i][j] << " / " << "L2 = " << distL[i][j] << endl;
+			cout << i << " , " << j << " : " << "Cos = " << distCos[i][j] << " / " << "L2 = " << distL[i][j] << " / " << "PearsonSim = " << pearsonSim[i][j] << endl;
 }
 
 // A short test function code that can be run to check if the algo works correctly
@@ -265,7 +298,7 @@ void test() {
 }
 
 int main() {
-	//test();
+	// test();
 	// 1st step: map characters
 	calcConvertChar();
 	// 2nd step: get stop words
